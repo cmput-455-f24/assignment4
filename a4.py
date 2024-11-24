@@ -6,36 +6,41 @@ import sys
 import random
 import signal
 
+import numpy as np
+
+
 # Custom time out exception
 class TimeoutException(Exception):
     pass
 
+
 # Function that is called when we reach the time limit
 def handle_alarm(signum, frame):
     raise TimeoutException
+
 
 class CommandInterface:
 
     def __init__(self):
         # Define the string to function command mapping
         self.command_dict = {
-            "help" : self.help,
-            "game" : self.game,
-            "show" : self.show,
-            "play" : self.play,
-            "legal" : self.legal,
-            "genmove" : self.genmove,
-            "winner" : self.winner,
-            "timelimit": self.timelimit
+            "help": self.help,
+            "game": self.game,
+            "show": self.show,
+            "play": self.play,
+            "legal": self.legal,
+            "genmove": self.genmove,
+            "winner": self.winner,
+            "timelimit": self.timelimit,
         }
         self.board = [[None]]
         self.player = 1
         self.max_genmove_time = 1
         signal.signal(signal.SIGALRM, handle_alarm)
-    
-    #====================================================================================================================
+
+    # ====================================================================================================================
     # VVVVVVVVVV Start of predefined functions. You may modify, but make sure not to break the functionality. VVVVVVVVVV
-    #====================================================================================================================
+    # ====================================================================================================================
 
     # Convert a raw string to a command and a list of arguments
     def process_command(self, str):
@@ -43,7 +48,10 @@ class CommandInterface:
         command = str.split(" ")[0]
         args = [x for x in str.split(" ")[1:] if len(x) > 0]
         if command not in self.command_dict:
-            print("? Uknown command.\nType 'help' to list known commands.", file=sys.stderr)
+            print(
+                "? Uknown command.\nType 'help' to list known commands.",
+                file=sys.stderr,
+            )
             print("= -1\n")
             return False
         try:
@@ -53,7 +61,7 @@ class CommandInterface:
             print(e, file=sys.stderr)
             print("= -1\n")
             return False
-        
+
     # Will continuously receive and execute commands
     # Commands should return True on success, and False on failure
     # Every command will print '= 1' or '= -1' at the end of execution to indicate success or failure respectively
@@ -71,7 +79,9 @@ class CommandInterface:
     def arg_check(self, args, template):
         converted_args = []
         if len(args) < len(template.split(" ")):
-            print("Not enough arguments.\nExpected arguments:", template, file=sys.stderr)
+            print(
+                "Not enough arguments.\nExpected arguments:", template, file=sys.stderr
+            )
             print("Recieved arguments: ", end="", file=sys.stderr)
             for a in args:
                 print(a, end=" ", file=sys.stderr)
@@ -81,7 +91,13 @@ class CommandInterface:
             try:
                 converted_args.append(int(arg))
             except ValueError:
-                print("Argument '" + arg + "' cannot be interpreted as a number.\nExpected arguments:", template, file=sys.stderr)
+                print(
+                    "Argument '"
+                    + arg
+                    + "' cannot be interpreted as a number.\nExpected arguments:",
+                    template,
+                    file=sys.stderr,
+                )
                 return False
         args = converted_args
         return True
@@ -101,13 +117,13 @@ class CommandInterface:
         if n < 0 or m < 0:
             print("Invalid board size:", n, m, file=sys.stderr)
             return False
-        
+
         self.board = []
         for i in range(m):
-            self.board.append([None]*n)
+            self.board.append([None] * n)
         self.player = 1
         return True
-    
+
     def show(self, args):
         for row in self.board:
             for x in row:
@@ -115,13 +131,13 @@ class CommandInterface:
                     print(".", end="")
                 else:
                     print(x, end="")
-            print()                    
+            print()
         return True
 
     def is_legal(self, x, y, num):
         if self.board[y][x] is not None:
             return False, "occupied"
-        
+
         consecutive = 0
         count = 0
         self.board[y][x] = num
@@ -135,7 +151,7 @@ class CommandInterface:
             else:
                 consecutive = 0
         too_many = count > len(self.board) // 2 + len(self.board) % 2
-        
+
         consecutive = 0
         count = 0
         for col in range(len(self.board[0])):
@@ -153,11 +169,15 @@ class CommandInterface:
 
         self.board[y][x] = None
         return True, ""
-    
+
     def valid_move(self, x, y, num):
-        if  x >= 0 and x < len(self.board[0]) and\
-                y >= 0 and y < len(self.board) and\
-                (num == 0 or num == 1):
+        if (
+            x >= 0
+            and x < len(self.board[0])
+            and y >= 0
+            and y < len(self.board)
+            and (num == 0 or num == 1)
+        ):
             legal, _ = self.is_legal(x, y, num)
             return legal
 
@@ -172,10 +192,10 @@ class CommandInterface:
         except ValueError:
             print("= illegal move: " + " ".join(args) + " wrong coordinate\n")
             return False
-        if  x < 0 or x >= len(self.board[0]) or y < 0 or y >= len(self.board):
+        if x < 0 or x >= len(self.board[0]) or y < 0 or y >= len(self.board):
             print("= illegal move: " + " ".join(args) + " wrong coordinate\n")
             return False
-        if args[2] != '0' and args[2] != '1':
+        if args[2] != "0" and args[2] != "1":
             print("= illegal move: " + " ".join(args) + " wrong number\n")
             return False
         num = int(args[2])
@@ -189,7 +209,7 @@ class CommandInterface:
         else:
             self.player = 1
         return True
-    
+
     def legal(self, args):
         if not self.arg_check(args, "x y number"):
             return False
@@ -199,7 +219,7 @@ class CommandInterface:
         else:
             print("no")
         return True
-    
+
     def get_legal_moves(self):
         moves = []
         for y in range(len(self.board)):
@@ -224,29 +244,29 @@ class CommandInterface:
         self.max_genmove_time = int(args[0])
         return True
 
-    #===============================================================================================
+    # ===============================================================================================
     # ɅɅɅɅɅɅɅɅɅɅ End of predefined functions. ɅɅɅɅɅɅɅɅɅɅ
-    #===============================================================================================
+    # ===============================================================================================
 
-    #===============================================================================================
+    # ===============================================================================================
     # VVVVVVVVVV Start of Assignment 4 functions. Add/modify as needed. VVVVVVVV
-    #===============================================================================================
+    # ===============================================================================================
 
     def genmove(self, args):
         try:
             # Set the time limit alarm
             signal.alarm(self.max_genmove_time)
-            
-            # Modify the following to give better moves than random play 
+
+            # Modify the following to give better moves than random play
             moves = self.get_legal_moves()
             if len(moves) == 0:
                 print("resign")
             else:
-                rand_move = moves[random.randint(0, len(moves)-1)]
+                rand_move = moves[random.randint(0, len(moves) - 1)]
                 self.play(rand_move)
                 print(" ".join(rand_move))
-            
-            # Disable the time limit alarm 
+
+            # Disable the time limit alarm
             signal.alarm(0)
 
         except TimeoutException:
@@ -254,11 +274,122 @@ class CommandInterface:
             print("resign")
 
         return True
-    
-    #===============================================================================================
+
+    # MCTS approach with transposition table
+
+
+    # Process:
+    # 1. Use a rule-based simulation policy
+
+    # TODO
+    # [] 1. Implement a rule-based simulation policy
+    # [] 2. Implement UCT function
+    # [] 3. Implement MCTS function
+    # [] 4. Implement transposition table
+    # [] 5. Implement a function to get the best move from the transposition table
+    # [] 6. Implement a function to update the transposition table
+
+    # ===============================================================================================
     # ɅɅɅɅɅɅɅɅɅɅ End of Assignment 4 functions. ɅɅɅɅɅɅɅɅɅɅ
-    #===============================================================================================
+    # ===============================================================================================
+
+class MCTS:
+    def __init__(self, iteration_limit = 1000000) -> None:
+        self.iteration_limit = iteration_limit
+
+    def search(self, initial_state):
+        root = Node(initial_state)
+
+        for _ in range(self.iteration_limit):
+            node = self.select(root)
+
+            if node.state.is_terminal():
+                # Expand tree with node children
+                node = self.expand(node)
+
+            # Simulate the game
+            reward = self.simulate(node)
+
+            # Backpropagate the reward
+            self.backpropagate(node, reward)
+            
+        
+    # Run UCT to select the best child of the node
+    def select(self, node):
+        # Ignore terminal nodes
+        while not node.state.is_terminal():
+            if not node.is_fully_expanded():
+                # If the node is not fully expanded, return the node for further expansion
+                return node
+            else:
+                # If the node is fully expanded, select the best child of the node
+                node = node.best_child()
+
+        # If the node state is terminal, return the node
+        return node
     
+    def expand(self, node):
+        # TODO this has to be fast
+        # Get node children's attempted moves
+        attempted_moves = node.get_children_moves()
+
+        # Get the legal moves from the current state
+        legal_moves = node.state.get_legal_moves()
+
+        for move in legal_moves:
+            if move not in attempted_moves:
+                # Make move
+                new_state = node.state.play_move(move)
+
+                # Create a new child node based on new state, parent node and move
+                child_node = Node(new_state, parent=node, move=move)
+
+                # Update node's children
+                node.children.append(child_node)
+
+                return child_node
+        
+        # Case for fully expanded node
+        return node
+
+    # TODO: Why can't I pass the node here    
+    def simulation(self, state):
+        current_state = state.copy()
+
+        while not current_state.is_terminal():
+            # Get legal moves
+            legal_moves = current_state.get_legal_moves()
+
+            # Don't do anything if there are no legal moves remaining 
+            if len(legal_moves) == 0:
+                break
+
+            # TODO: Implement a rule-based simulation policy ?
+            # For now, use a uniform random policy (all moves are equally likely to be chosen)    
+            random_move = random.choice(legal_moves)
+
+            # Play the random move selected by policy 
+            current_state = current_state.play_move(random_move)
+
+        # Get the winner of the game from current state
+        winner = current_state.get_winner()
+
+        # Return 1 if player 1 wins, 0 if player 2 wins
+        if winner == current_state.player_turn():
+            return 1
+        else:
+            return 0
+    
+    def back_propagation(self, node, reward):
+        while node is not None:
+            node.visits += 1
+            node.reward += reward
+
+            node = node.parent
+
+
+    
+
 if __name__ == "__main__":
     interface = CommandInterface()
     interface.main_loop()
