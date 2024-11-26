@@ -230,6 +230,9 @@ class CommandInterface:
                         moves.append([str(x), str(y), str(num)])
         return moves
 
+    def is_terminal(self):
+        return len(self.get_legal_moves()) == 0
+
     def winner(self, args):
         if len(self.get_legal_moves()) == 0:
             if self.player == 1:
@@ -275,28 +278,20 @@ class CommandInterface:
 
         return True
 
-    # MCTS approach with transposition table
-
-
-    # Process:
-    # 1. Use a rule-based simulation policy
-
-    # TODO
-    # [] 1. Implement a rule-based simulation policy
-    # [] 2. Implement UCT function
-    # [] 3. Implement MCTS function
-    # [] 4. Implement transposition table
-    # [] 5. Implement a function to get the best move from the transposition table
-    # [] 6. Implement a function to update the transposition table
-
     # ===============================================================================================
     # ɅɅɅɅɅɅɅɅɅɅ End of Assignment 4 functions. ɅɅɅɅɅɅɅɅɅɅ
     # ===============================================================================================
 
+
 class MCTS:
-    def __init__(self, iteration_limit = 1000000) -> None:
+    def __init__(self, iteration_limit=1000000) -> None:
         self.iteration_limit = iteration_limit
 
+    # Search for the best move from the initial state
+    # 1) Select the child node of the root using uct
+    # 2) Expand the tree with node child
+    # 3) Simulate the game from the node state
+    # 4) Back propagate the reward
     def search(self, initial_state):
         root = Node(initial_state)
 
@@ -307,87 +302,108 @@ class MCTS:
                 # Expand tree with node children
                 node = self.expand(node)
 
-            # Simulate the game
             reward = self.simulate(node)
 
-            # Backpropagate the reward
-            self.backpropagate(node, reward)
-            
-        
-    # Run UCT to select the best child of the node
-    def select(self, node):
-        # Ignore terminal nodes
-        while not node.state.is_terminal():
-            if not node.is_fully_expanded():
-                # If the node is not fully expanded, return the node for further expansion
-                return node
-            else:
-                # If the node is fully expanded, select the best child of the node
-                node = node.best_child()
+            # Back propagate the reward
+            self.back_propagation(node, reward)
 
-        # If the node state is terminal, return the node
+    # Run UCT to select the best child of the node (balance exploration and exploitation)
+    def select(self, node):
+
+        while not node.state.is_terminal():
+            if node.state.is_terminal():
+                # Run UCT to select the best child of the node (balance exploration and exploitation)
+                node = node.best_child(self.exploration_constant)
+            else:
+                return node
+        # return best child node to explore
         return node
-    
+
+    # Add a new child node representing a possible move
     def expand(self, node):
-        # TODO this has to be fast
         # Get node children's attempted moves
         attempted_moves = node.get_children_moves()
-
         # Get the legal moves from the current state
         legal_moves = node.state.get_legal_moves()
 
         for move in legal_moves:
             if move not in attempted_moves:
-                # Make move
-                new_state = node.state.play_move(move)
-
+                # Play move
+                new_state = node.state.play(move)
                 # Create a new child node based on new state, parent node and move
                 child_node = Node(new_state, parent=node, move=move)
-
                 # Update node's children
                 node.children.append(child_node)
 
                 return child_node
-        
-        # Case for fully expanded node
+
+        # Case for fully expanded path
         return node
 
-    # TODO: Why can't I pass the node here    
+    # Perform a simulation from the node state'
+    # TODO Need a heuristic based simulation policy
     def simulation(self, state):
         current_state = state.copy()
 
         while not current_state.is_terminal():
             # Get legal moves
             legal_moves = current_state.get_legal_moves()
-
-            # Don't do anything if there are no legal moves remaining 
+            # Don't do anything if there are no legal moves remaining
             if len(legal_moves) == 0:
                 break
 
-            # TODO: Implement a rule-based simulation policy ?
-            # For now, use a uniform random policy (all moves are equally likely to be chosen)    
+            # TODO: For now, use a uniform random policy (all moves are equally likely to be chosen)
             random_move = random.choice(legal_moves)
-
-            # Play the random move selected by policy 
+            # Play the random move selected by policy
             current_state = current_state.play_move(random_move)
 
-        # Get the winner of the game from current state
-        winner = current_state.get_winner()
+        # Get the winner of the game from the final state produced by the simulation
+        isWinner = current_state.get_winner()
 
-        # Return 1 if player 1 wins, 0 if player 2 wins
-        if winner == current_state.player_turn():
+        # return 1 if player 1 wins
+        #        0 if player 2 wins
+        if isWinner == current_state.player_turn():
             return 1
         else:
             return 0
-    
+
+    # Update visit counts and rewards along the path back to the root node
+    # This data will be used to select the next node to explore
     def back_propagation(self, node, reward):
         while node is not None:
             node.visits += 1
             node.reward += reward
-
             node = node.parent
 
 
+# What should a node class include
+# - state - the state of the game
+# - parent - the parent node
+# - children - the children nodes
+# - visits - the number of times the node has been visited
+# - reward - the reward of the node
+class Node:
+    def __init__(self):
+        self.state = None
+        self.parent = None
+        self.children = []
+        self.visits = 0
+        self.reward = 0
+
+    def is_fully_expanded(self):
+        return len(self.children) == len(self.state.get_legal_moves())
+
+    def best_child(self, exploration_constant):
+        children_evals = [
+            self.uct(child, exploration_constant) for child in self.children
+        ]
+        return self.children[np.argmax(children_evals)]
+
+    # win ratio of child * exploration constant * sqrt(log(parent visits) / child visits)
+    def uct(self, node, exploration_constant=1.4):
+        return (node.reward / node.visits) + exploration_constant * np.sqrt(
+            np.log(self.visits) / node.visits
+        )
     
 
 if __name__ == "__main__":
