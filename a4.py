@@ -36,6 +36,7 @@ class CommandInterface:
         self.board = [[None]]
         self.player = 1
         self.max_genmove_time = 1
+        self.solver = None
         signal.signal(signal.SIGALRM, handle_alarm)
 
     # ====================================================================================================================
@@ -122,6 +123,9 @@ class CommandInterface:
         for i in range(m):
             self.board.append([None] * n)
         self.player = 1
+
+        self.mcts = MCTS(iteration_limit=1000, initial_state=self)
+
         return True
 
     def show(self, args):
@@ -261,13 +265,23 @@ class CommandInterface:
             signal.alarm(self.max_genmove_time)
 
             # Modify the following to give better moves than random play
-            moves = self.get_legal_moves()
+            mcts = MCTS(iteration_limit=1000)
+
+            # Pass the entire board state to the MCTS
+            best_move = mcts.search(self)
+
             if len(moves) == 0:
                 print("resign")
             else:
                 rand_move = moves[random.randint(0, len(moves) - 1)]
                 self.play(rand_move)
                 print(" ".join(rand_move))
+
+            if best_move is None:
+                print("resign")
+            else:
+                self.play(best_move)
+                print(" ".join(best_move))
 
             # Disable the time limit alarm
             signal.alarm(0)
@@ -284,8 +298,9 @@ class CommandInterface:
 
 
 class MCTS:
-    def __init__(self, iteration_limit=1000000) -> None:
+    def __init__(self, state, iteration_limit) -> None:
         self.iteration_limit = iteration_limit
+        self.state = state
 
     # Search for the best move from the initial state
     # 1) Select the child node of the root using uct
@@ -404,7 +419,7 @@ class Node:
         return (node.reward / node.visits) + exploration_constant * np.sqrt(
             np.log(self.visits) / node.visits
         )
-    
+
 
 if __name__ == "__main__":
     interface = CommandInterface()
