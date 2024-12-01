@@ -39,7 +39,6 @@ class CommandInterface:
         self.zobristStateHash = 0
         self.numberOfDigitsInRow = [[None]]
         self.numberOfDigitsInCol = [[None]]
-        self.moves_played = 0
     #====================================================================================================================
     # VVVVVVVVVV Start of predefined functions. You may modify, but make sure not to break the functionality. VVVVVVVVVV
     #====================================================================================================================
@@ -118,7 +117,6 @@ class CommandInterface:
         self.numberOfDigitsInCol = [[0,0] for i in range(n)]
         self.zobristHashTable = [[ random.randint(-sys.maxsize-1, sys.maxsize) for i in range(3)] for i in range(n*m)]
         self.zobristStateHash=0
-        self.moves_played=0
         # 0 and 1 in the same position have negated hashcodes
         for i in range(n*m):
             self.zobristStateHash ^= self.zobristHashTable[i][2]
@@ -280,7 +278,6 @@ class CommandInterface:
         self.numberOfDigitsInRow[row][num] += 1
         self.numberOfDigitsInCol[col][num] += 1
         self.zobristStateHash ^= self.zobristHashTable[len(self.board[0])*row+col][2] ^ self.zobristHashTable[len(self.board[0])*row+col][num]
-        self.moves_played += 1
         if self.player == 1:
             self.player = 2
         else:
@@ -452,8 +449,6 @@ class CommandInterface:
         out += str(rootNumDigitRow)+"\n"
         out += "Root numOfDigitsInCol: \n"
         out += str(rootNumDigitCol)+" \n"
-        out += "Moves played: \n"+str(self.moves_played)
-        out += "exploration constant: \n"+str(0*(0.4+5 * (math.e ** (-(self.moves_played-9)))))
         return out
     
     def run_mcts_loop(self, tree):
@@ -510,13 +505,13 @@ class CommandInterface:
         return final_move
 
     def getStateHash(self):
-        return str(self.board)
-        # return self.zobristStateHash
+        # return str(self.board)
+        return self.zobristStateHash
 
     # O(d * n^2)
     def MCTSSolver(self, tree):
+        legal_moves = self.get_legal_moves()
         currentStateHash = self.getStateHash()
-        legal_moves = tree[currentStateHash]['children']
         
         tree[currentStateHash]['visits']+=1
 
@@ -530,8 +525,9 @@ class CommandInterface:
         self.undoSimulatedMove(best_child_move)
 
         if(best_child_hash not in tree):
-            R = -self.playOut(best_child_move, legal_moves)
 
+            R = -self.playOut(best_child_move, legal_moves)
+            
             self.simulateMove(best_child_move)
             self.addToTree(tree)
             tree[best_child_hash]['visits'] += 1
@@ -592,10 +588,11 @@ class CommandInterface:
     # Time complexity : O(n^2)
     def playOut(self, best_child_move, legal_moves):
         self.simulateMove(best_child_move)
+
         best_child_player = copy.deepcopy(self.player)
     
         move_stack = [best_child_move]
-        toPutBack = []
+        
         while True:
             if len(legal_moves) <= 0:
                 break
@@ -605,13 +602,12 @@ class CommandInterface:
             row = int(rand_move[1])
             num = int(rand_move[2])
             legal_moves[rand_idx] = legal_moves[-1]
-            toPutBack.append(rand_move)
             legal_moves.pop()
             if not self.is_legal(col, row, num):    
                 continue
             self.simulateMove(rand_move)
             move_stack.append(rand_move)
-        legal_moves += toPutBack
+        
         if(self.player == best_child_player):
             for move in move_stack:
                 # undo move
@@ -622,57 +618,7 @@ class CommandInterface:
                 # undo move
                 self.undoSimulatedMove(move)
             return 1
-
-    def depth_limited_negamax(self, depth):
-        legal_moves =self.get_legal_moves()
     
-        if len(legal_moves) <= 0:
-            return float('-inf')
-    
-        if depth == 0:
-            h_total=0
-            for move in legal_moves: 
-                h_total+=self.heuristic(move)
-            return -h_total 
-    
-        best_score = -float('inf')
-
-        for move in legal_moves:
-            # Make the move
-            self.simulateMove(move)
-        
-            # Recursive call with reduced depth and opponent's perspective
-            score = -depth_limited_negamax(state, depth - 1)
-        
-            # Undo the move
-            self.undoSimulatedMove(move)
-        
-            # Track the best score
-            best_score = max(best_score, score)
-
-        return best_score
-
-    def biasedPlayOut(self):
-        legal_moves =self.get_legal_moves()
-
-        if len(legal_moves) <= 0:
-            return -1
-
-        ties = []
-        best_value=float('-inf')
-        for move in legal_moves:
-            if self.heuristic(move) > best_value:
-                ties = [move]
-            if self.heuristic(move) == best_value:
-                ties.append(move)
-        move = random.choice(ties)
-
-        self.simulateMove(move)
-        score = -self.biasedPlayOut()
-        self.undoSimulatedMove(move)
-        
-        return score
-
     def changePlayerTurn(self, playerVar):
         if playerVar == 1:
             return 2
@@ -680,46 +626,20 @@ class CommandInterface:
             return 1
         else:
             raise Exception("Unhandled error at changePlayerTurn()")
-    
+
     def heuristic(self, move):
         col = int(move[0])
         row = int(move[1])
         digit = int(move[2])
-        h = self.numberOfDigitsInRow[row][digit] + self.numberOfDigitsInCol[col][digit] - (self.numberOfDigitsInRow[row][1 if digit == 0 else 0] + self.numberOfDigitsInRow[col][1 if digit == 0 else 0])
+        h = self.numberOfDigitsInRow[row][digit] + self.numberOfDigitsInCol[col][digit]
         return h
-    
+
     # Return best child of a node. Time Complexity:  O(n^2).
     def selectBestChildNode(self, tree, legal_moves):
         best_value = float('-inf')
         ties = []
         currentStateHash = self.getStateHash()
-        if tree[currentStateHash]['threshold_count'] >= len(legal_moves):
-            best_value = float('-inf')
-            ties = []
-            for move in legal_moves:
 
-                self.simulateMove(move)
-                simulatedStateHash = self.getStateHash()
-                self.undoSimulatedMove(move)
-                total_parent_visits = tree[currentStateHash]['visits']
-                if simulatedStateHash not in tree:
-                    ties =[move]
-                    break
-                current_node_visits = tree[simulatedStateHash]['visits']
-
-                c = 1.2
-                k = 0
-                exploitation = tree[simulatedStateHash]['wins']/tree[simulatedStateHash]['visits'] + k*self.heuristic(move)
-                exploration = c * math.sqrt(math.log(total_parent_visits) / (current_node_visits))
-
-                if exploitation+exploration > best_value:
-                    best_value = exploitation+exploration
-                    ties=[move]
-
-                if exploitation+exploration == best_value:
-                    ties.append(move)
-            return random.choice(ties)
-        
         for move in legal_moves:
 
             self.simulateMove(move)
@@ -730,12 +650,9 @@ class CommandInterface:
                 ties =[move]
                 break
             current_node_visits = tree[simulatedStateHash]['visits']
-            if current_node_visits >= 500:
-                tree[currentStateHash]['threshold_count'] += 1
-                continue
-            c = 0.4+5 * (math.e ** (-(-9)))
+            c = 10
             k = 0
-            exploitation = tree[simulatedStateHash]['wins']/tree[simulatedStateHash]['visits'] + k*self.heuristic(move)
+            exploitation = tree[simulatedStateHash]['wins']/tree[simulatedStateHash]['visits'] + k * self.heuristic(move)
             exploration = c * math.sqrt(math.log(total_parent_visits) / (current_node_visits))
 
             if exploitation+exploration > best_value:
@@ -746,18 +663,15 @@ class CommandInterface:
                 ties.append(move)
 
         return random.choice(ties)
-    
+            
     # Add node to tree. Time Complexity: O(n^2)
     def addToTree(self, tree):
         currentStateHash = self.getStateHash()
         if currentStateHash in tree:
             return
-        legal_moves = self.get_legal_moves()
         tree[currentStateHash] = {
                 'wins':0,
-                'visits':0,
-                'threshold_count':0,
-                'children': legal_moves,
+                'visits':0
         }
 
 
