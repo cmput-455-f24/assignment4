@@ -510,8 +510,8 @@ class CommandInterface:
 
     # O(d * n^2)
     def MCTSSolver(self, tree):
+        legal_moves = self.get_legal_moves()
         currentStateHash = self.getStateHash()
-        legal_moves = tree[currentStateHash]['children']
         
         tree[currentStateHash]['visits']+=1
 
@@ -553,7 +553,7 @@ class CommandInterface:
                     self.simulateMove(move)
                     childHash = self.getStateHash()
                     self.undoSimulatedMove(move)
-                    if childHash not in tree or (tree[childHash]['wins'] != R):
+                    if (tree[childHash]['wins'] != R):
                         R = -1
                         tree[currentStateHash]['wins'] += 1
                         return R
@@ -593,7 +593,6 @@ class CommandInterface:
     
         move_stack = [best_child_move]
         
-        toPutBack = []
         while True:
             if len(legal_moves) <= 0:
                 break
@@ -603,13 +602,11 @@ class CommandInterface:
             row = int(rand_move[1])
             num = int(rand_move[2])
             legal_moves[rand_idx] = legal_moves[-1]
-            toPutBack.append(rand_move)
             legal_moves.pop()
-            if not self.is_legal(col, row, num):
+            if not self.is_legal(col, row, num):    
                 continue
             self.simulateMove(rand_move)
             move_stack.append(rand_move)
-        legal_moves += toPutBack
         
         if(self.player == best_child_player):
             for move in move_stack:
@@ -636,6 +633,7 @@ class CommandInterface:
         digit = int(move[2])
         h = self.numberOfDigitsInRow[row][digit] + self.numberOfDigitsInCol[col][digit]
         return h
+
     # Return best child of a node. Time Complexity:  O(n^2).
     def selectBestChildNode(self, tree, legal_moves):
         best_value = float('-inf')
@@ -652,7 +650,7 @@ class CommandInterface:
                 ties =[move]
                 break
             current_node_visits = tree[simulatedStateHash]['visits']
-            c = 10
+            c = 1
             k = 0
             exploitation = tree[simulatedStateHash]['wins']/tree[simulatedStateHash]['visits'] + k * self.heuristic(move)
             exploration = c * math.sqrt(math.log(total_parent_visits) / (current_node_visits))
@@ -671,12 +669,11 @@ class CommandInterface:
         currentStateHash = self.getStateHash()
         if currentStateHash in tree:
             return
-        legal_moves = self.get_legal_moves()
         tree[currentStateHash] = {
                 'wins':0,
-                'visits':0,
-                'children': legal_moves
+                'visits':0
         }
+
 
 
     #===============================================================================================
