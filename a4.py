@@ -337,15 +337,6 @@ class CommandInterface:
                         moves.append([str(x), str(y), str(num)])
         return moves
 
-    def get_legal_moves2(self):
-        moves = []
-        for y in range(len(self.board)):
-            for x in range(len(self.board[0])):
-                for num in range(2):
-                    legal, _ = self.is_legal(x, y, num)
-                    if legal:
-                        moves.append([str(x), str(y), str(num)])
-        return moves
 
     def winner(self, args):
         if len(self.get_legal_moves()) == 0:
@@ -392,7 +383,7 @@ class CommandInterface:
         return True
 
     def genmove(self, args):
-        debug = 1
+        debug = 0
 
         # Initialize tree
         tree = {}
@@ -569,11 +560,10 @@ class CommandInterface:
         row = int(move[1])
         digit = int(move[2])
         self.board[row][col] = digit
-        self.player = self.changePlayerTurn(self.player)
         self.numberOfDigitsInRow[row][digit] += 1
         self.numberOfDigitsInCol[col][digit] += 1
         self.zobristStateHash ^= self.zobristHashTable[len(self.board[0])*row+col][2] ^ self.zobristHashTable[len(self.board[0])*row+col][digit]
-
+        self.player = self.changePlayerTurn(self.player)
     #O(1)
     def undoSimulatedMove(self, move):
         col = int(move[0])
@@ -627,42 +617,66 @@ class CommandInterface:
         else:
             raise Exception("Unhandled error at changePlayerTurn()")
 
-    def heuristic(self, move):
-        col = int(move[0])
-        row = int(move[1])
-        digit = int(move[2])
-        h = self.numberOfDigitsInRow[row][digit] + self.numberOfDigitsInCol[col][digit]
-        return h
 
     # Return best child of a node. Time Complexity:  O(n^2).
-    def selectBestChildNode(self, tree, legal_moves):
+    # def selectBestChildNode(self, tree, legal_moves):
+    #     best_value = float('-inf')
+    #     ties = []
+    #     currentStateHash = self.getStateHash()
+
+    #     for move in legal_moves:
+
+    #         self.simulateMove(move)
+    #         simulatedStateHash = self.getStateHash()
+    #         self.undoSimulatedMove(move)
+    #         total_parent_visits = tree[currentStateHash]['visits']
+    #         if simulatedStateHash not in tree:
+    #             ties =[move]
+    #             break
+    #         current_node_visits = tree[simulatedStateHash]['visits']
+    #         c = 1.41
+    #         k = 0
+    #         exploitation = tree[simulatedStateHash]['wins']/tree[simulatedStateHash]['visits'] + k * self.heuristic(move)
+    #         exploration = c * math.sqrt(math.log(total_parent_visits) / (current_node_visits))
+
+    #         if (exploitation + exploration) > best_value:
+    #             best_value = exploitation + exploration
+    #             ties=[move]
+
+    #         if (exploitation + exploration) == best_value:
+    #             ties.append(move)
+
+    #     return random.choice(ties)
+    
+    def selectBestChildNode(self, tree, legal_moves, exploration_constant=math.sqrt(2)):
         best_value = float('-inf')
-        ties = []
+        best_moves = []
         currentStateHash = self.getStateHash()
 
         for move in legal_moves:
-
             self.simulateMove(move)
             simulatedStateHash = self.getStateHash()
             self.undoSimulatedMove(move)
-            total_parent_visits = tree[currentStateHash]['visits']
+
+            # Prioritize unexplored moves
             if simulatedStateHash not in tree:
-                ties =[move]
-                break
-            current_node_visits = tree[simulatedStateHash]['visits']
-            c = 10
-            k = 0
-            exploitation = tree[simulatedStateHash]['wins']/tree[simulatedStateHash]['visits'] + k * self.heuristic(move)
-            exploration = c * math.sqrt(math.log(total_parent_visits) / (current_node_visits))
+                best_moves = [move]
+                break  
+            node = tree[simulatedStateHash]
+            if node['visits'] == 0:
+                uct_value = float('inf')
+            else:
+                exploitation = node['wins'] / node['visits']
+                exploration = exploration_constant * math.sqrt(math.log(tree[currentStateHash]['visits']) / node['visits'])
+                uct_value = exploitation + exploration
 
-            if exploitation+exploration > best_value:
-                best_value = exploitation+exploration
-                ties=[move]
+            if uct_value > best_value:
+                best_value = uct_value
+                best_moves = [move]
+            elif uct_value == best_value:
+                best_moves.append(move)
 
-            if exploitation+exploration == best_value:
-                ties.append(move)
-
-        return random.choice(ties)
+        return random.choice(best_moves)
             
     # Add node to tree. Time Complexity: O(n^2)
     def addToTree(self, tree):
