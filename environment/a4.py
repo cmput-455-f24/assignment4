@@ -337,15 +337,6 @@ class CommandInterface:
                         moves.append([str(x), str(y), str(num)])
         return moves
 
-    def get_legal_moves2(self):
-        moves = []
-        for y in range(len(self.board)):
-            for x in range(len(self.board[0])):
-                for num in range(2):
-                    legal, _ = self.is_legal(x, y, num)
-                    if legal:
-                        moves.append([str(x), str(y), str(num)])
-        return moves
 
     def winner(self, args):
         if len(self.get_legal_moves()) == 0:
@@ -392,7 +383,7 @@ class CommandInterface:
         return True
 
     def genmove(self, args):
-        debug = 1
+        debug = 0
 
         # Initialize tree
         tree = {}
@@ -423,11 +414,11 @@ class CommandInterface:
 
         except TimeoutException:
             self.resetRootState(rootBoard, rootPlayer, rootStateHash,  rootNumDigitsRow, rootNumDigitsCol)
-        move = self.final_move_select(tree, moves)
-        if debug == 1:
-            mcts_details = self.get_mcts_details(tree, moves)
-        self.play(move)
-        print(" ".join(move))
+            move = self.final_move_select(tree, moves)
+            if debug == 1:
+                mcts_details = self.get_mcts_details(tree, moves)
+            self.play(move)
+            print(" ".join(move))
         if debug == 1:
             print(root_details)
             print(mcts_details)
@@ -457,7 +448,7 @@ class CommandInterface:
         
         self.addToTree(tree)
 
-        while mcts_solver_output != float('inf') and mcts_solver_output != float('-inf'): 
+        while True: 
         # while counter <= 0:
             mcts_solver_output = self.MCTSSolver(tree)
             counter += 1
@@ -505,13 +496,13 @@ class CommandInterface:
         return final_move
 
     def getStateHash(self):
-        return str(self.board)
-        # return self.zobristStateHash
+        # return str(self.board)
+        return self.zobristStateHash
 
     # O(d * n^2)
     def MCTSSolver(self, tree):
+        legal_moves = self.get_legal_moves()
         currentStateHash = self.getStateHash()
-        legal_moves = tree[currentStateHash]['children']
         
         tree[currentStateHash]['visits']+=1
 
@@ -519,7 +510,7 @@ class CommandInterface:
             tree[currentStateHash]['wins'] = float('inf')
             return float('-inf')
         
-        best_child_move = self.selectBestChildNode(tree, legal_moves, currentStateHash)
+        best_child_move = self.selectBestChildNode(tree, legal_moves)
         self.simulateMove(best_child_move)
         best_child_hash = self.getStateHash()
         self.undoSimulatedMove(best_child_move)
@@ -569,11 +560,10 @@ class CommandInterface:
         row = int(move[1])
         digit = int(move[2])
         self.board[row][col] = digit
-        self.player = self.changePlayerTurn(self.player)
         self.numberOfDigitsInRow[row][digit] += 1
         self.numberOfDigitsInCol[col][digit] += 1
         self.zobristStateHash ^= self.zobristHashTable[len(self.board[0])*row+col][2] ^ self.zobristHashTable[len(self.board[0])*row+col][digit]
-
+        self.player = self.changePlayerTurn(self.player)
     #O(1)
     def undoSimulatedMove(self, move):
         col = int(move[0])
@@ -592,7 +582,7 @@ class CommandInterface:
         best_child_player = copy.deepcopy(self.player)
     
         move_stack = [best_child_move]
-        toPutBack = []
+        
         while True:
             if len(legal_moves) <= 0:
                 break
@@ -602,13 +592,12 @@ class CommandInterface:
             row = int(rand_move[1])
             num = int(rand_move[2])
             legal_moves[rand_idx] = legal_moves[-1]
-            toPutBack.append(rand_move)
             legal_moves.pop()
             if not self.is_legal(col, row, num):    
                 continue
             self.simulateMove(rand_move)
             move_stack.append(rand_move)
-        legal_moves += toPutBack
+        
         if(self.player == best_child_player):
             for move in move_stack:
                 # undo move
@@ -627,57 +616,76 @@ class CommandInterface:
             return 1
         else:
             raise Exception("Unhandled error at changePlayerTurn()")
-    
-    def heuristic(self, move):
-        col = int(move[0])
-        row = int(move[1])
-        digit = int(move[2])
-        h = self.numberOfDigitsInRow[row][digit] + self.numberOfDigitsInCol[col][digit]
-        return h
-    
+
+
     # Return best child of a node. Time Complexity:  O(n^2).
-    def selectBestChildNode(self, tree, legal_moves, currentStateHash):
+    # def selectBestChildNode(self, tree, legal_moves):
+    #     best_value = float('-inf')
+    #     ties = []
+    #     currentStateHash = self.getStateHash()
+
+    #     for move in legal_moves:
+
+    #         self.simulateMove(move)
+    #         simulatedStateHash = self.getStateHash()
+    #         self.undoSimulatedMove(move)
+    #         total_parent_visits = tree[currentStateHash]['visits']
+    #         if simulatedStateHash not in tree:
+    #             ties =[move]
+    #             break
+    #         current_node_visits = tree[simulatedStateHash]['visits']
+    #         c = 1.41
+    #         k = 0
+    #         exploitation = tree[simulatedStateHash]['wins']/tree[simulatedStateHash]['visits'] + k * self.heuristic(move)
+    #         exploration = c * math.sqrt(math.log(total_parent_visits) / (current_node_visits))
+
+    #         if (exploitation + exploration) > best_value:
+    #             best_value = exploitation + exploration
+    #             ties=[move]
+
+    #         if (exploitation + exploration) == best_value:
+    #             ties.append(move)
+
+    #     return random.choice(ties)
+    
+    def selectBestChildNode(self, tree, legal_moves, exploration_constant=math.sqrt(2)):
         best_value = float('-inf')
-        ties = []
+        best_moves = []
+        currentStateHash = self.getStateHash()
 
         for move in legal_moves:
-
             self.simulateMove(move)
             simulatedStateHash = self.getStateHash()
             self.undoSimulatedMove(move)
-            total_parent_visits = tree[currentStateHash]['visits']
+
+            # Prioritize unexplored moves
             if simulatedStateHash not in tree:
-                if best_value == float('inf'):
-                    ties.append(move)
-                    continue
-                ties =[move]
-                best_value=float('inf')
-                continue
-            current_node_visits = tree[simulatedStateHash]['visits']
-            c = 0.4+5 * ( math.e ** 9 )
-            k = 0
-            exploitation = tree[simulatedStateHash]['wins']/tree[simulatedStateHash]['visits'] + k*self.heuristic(move)
-            exploration = c * math.sqrt(math.log(total_parent_visits) / (current_node_visits))
+                best_moves = [move]
+                break  
+            node = tree[simulatedStateHash]
+            if node['visits'] == 0:
+                uct_value = float('inf')
+            else:
+                exploitation = node['wins'] / node['visits']
+                exploration = exploration_constant * math.sqrt(math.log(tree[currentStateHash]['visits']) / node['visits'])
+                uct_value = exploitation + exploration
 
-            if exploitation+exploration > best_value:
-                best_value = exploitation+exploration
-                ties=[move]
+            if uct_value > best_value:
+                best_value = uct_value
+                best_moves = [move]
+            elif uct_value == best_value:
+                best_moves.append(move)
 
-            if exploitation+exploration == best_value:
-                ties.append(move)
-
-        return random.choice(ties)
-    
+        return random.choice(best_moves)
+            
     # Add node to tree. Time Complexity: O(n^2)
     def addToTree(self, tree):
         currentStateHash = self.getStateHash()
         if currentStateHash in tree:
             return
-        legal_moves = self.get_legal_moves()
         tree[currentStateHash] = {
                 'wins':0,
-                'visits':0,
-                'children': legal_moves,
+                'visits':0
         }
 
 
