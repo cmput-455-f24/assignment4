@@ -423,11 +423,11 @@ class CommandInterface:
 
         except TimeoutException:
             self.resetRootState(rootBoard, rootPlayer, rootStateHash,  rootNumDigitsRow, rootNumDigitsCol)
-            move = self.final_move_select(tree, moves)
-            if debug == 1:
-                mcts_details = self.get_mcts_details(tree, moves)
-            self.play(move)
-            print(" ".join(move))
+        move = self.final_move_select(tree, moves)
+        if debug == 1:
+            mcts_details = self.get_mcts_details(tree, moves)
+        self.play(move)
+        print(" ".join(move))
         if debug == 1:
             print(root_details)
             print(mcts_details)
@@ -457,7 +457,7 @@ class CommandInterface:
         
         self.addToTree(tree)
 
-        while True: 
+        while mcts_solver_output != float('inf') and mcts_solver_output != float('-inf'): 
         # while counter <= 0:
             mcts_solver_output = self.MCTSSolver(tree)
             counter += 1
@@ -519,7 +519,7 @@ class CommandInterface:
             tree[currentStateHash]['wins'] = float('inf')
             return float('-inf')
         
-        best_child_move = self.selectBestChildNode(tree, legal_moves)
+        best_child_move = self.selectBestChildNode(tree, legal_moves, currentStateHash)
         self.simulateMove(best_child_move)
         best_child_hash = self.getStateHash()
         self.undoSimulatedMove(best_child_move)
@@ -636,10 +636,9 @@ class CommandInterface:
         return h
     
     # Return best child of a node. Time Complexity:  O(n^2).
-    def selectBestChildNode(self, tree, legal_moves):
+    def selectBestChildNode(self, tree, legal_moves, currentStateHash):
         best_value = float('-inf')
         ties = []
-        currentStateHash = self.getStateHash()
 
         for move in legal_moves:
 
@@ -648,10 +647,14 @@ class CommandInterface:
             self.undoSimulatedMove(move)
             total_parent_visits = tree[currentStateHash]['visits']
             if simulatedStateHash not in tree:
+                if best_value == float('inf'):
+                    ties.append(move)
+                    continue
                 ties =[move]
-                break
+                best_value=float('inf')
+                continue
             current_node_visits = tree[simulatedStateHash]['visits']
-            c = 10
+            c = 0.4+5 * ( math.e ** 9 )
             k = 0
             exploitation = tree[simulatedStateHash]['wins']/tree[simulatedStateHash]['visits'] + k*self.heuristic(move)
             exploration = c * math.sqrt(math.log(total_parent_visits) / (current_node_visits))

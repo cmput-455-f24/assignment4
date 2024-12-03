@@ -631,7 +631,7 @@ class CommandInterface:
         col = int(move[0])
         row = int(move[1])
         digit = int(move[2])
-        h = self.numberOfDigitsInRow[row][digit] + self.numberOfDigitsInCol[col][digit]
+        h = self.numberOfDigitsInRow[row][digit] + self.numberOfDigitsInCol[col][digit] - (self.numberOfDigitsInRow[row][0 if digit == 1 else 1] + self.numberOfDigitsInCol[col][0 if digit == 1 else 1]) 
         return h
 
     # Return best child of a node. Time Complexity:  O(n^2).
@@ -647,8 +647,12 @@ class CommandInterface:
             self.undoSimulatedMove(move)
             total_parent_visits = tree[currentStateHash]['visits']
             if simulatedStateHash not in tree:
+                if best_value == float('inf'):
+                    ties.append(move)
+                    continue
+                best_value = float('inf')
                 ties =[move]
-                break
+                continue
             current_node_visits = tree[simulatedStateHash]['visits']
             c = 10
             k = 0
